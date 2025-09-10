@@ -1,0 +1,78 @@
+--// Freeze Pets in Garden - Grow a Garden
+-- Chỉ freeze pet trong khu vực vườn
+-- Bật ON → pet không di chuyển
+-- Bật OFF → pet hoạt động bình thường
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
+
+-- Tham số khu vườn (có thể điều chỉnh theo map)
+local gardenRegion = Region3.new(Vector3.new(-50,0,-50), Vector3.new(50,50,50)) -- min và max corner của vườn
+
+-- GUI
+local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
+ScreenGui.Name = "FreezePetsGUI"
+
+local ToggleButton = Instance.new("TextButton", ScreenGui)
+ToggleButton.Size = UDim2.new(0, 200, 0, 50)
+ToggleButton.Position = UDim2.new(0.05, 0, 0.1, 0)
+ToggleButton.Text = "🔴 Freeze Pets: OFF"
+ToggleButton.BackgroundColor3 = Color3.fromRGB(200,0,0)
+ToggleButton.TextColor3 = Color3.fromRGB(255,255,255)
+ToggleButton.Font = Enum.Font.SourceSansBold
+ToggleButton.TextSize = 20
+ToggleButton.Draggable = true
+
+-- Trạng thái
+local frozen = false
+
+-- Kiểm tra pet có trong khu vườn không
+local function isInGarden(part)
+    local pos = part.Position
+    return pos.X >= gardenRegion.CFrame.Position.X - gardenRegion.Size.X/2
+       and pos.X <= gardenRegion.CFrame.Position.X + gardenRegion.Size.X/2
+       and pos.Y >= gardenRegion.CFrame.Position.Y - gardenRegion.Size.Y/2
+       and pos.Y <= gardenRegion.CFrame.Position.Y + gardenRegion.Size.Y/2
+       and pos.Z >= gardenRegion.CFrame.Position.Z - gardenRegion.Size.Z/2
+       and pos.Z <= gardenRegion.CFrame.Position.Z + gardenRegion.Size.Z/2
+end
+
+-- Freeze/unfreeze các pet trong khu vườn
+local function setPetsFrozen(state)
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("Model") and obj.Name:lower():find("pet") then
+            for _, part in ipairs(obj:GetDescendants()) do
+                if part:IsA("BasePart") and isInGarden(part) then
+                    part.Anchored = state
+                end
+            end
+        end
+    end
+end
+
+-- Bắt sự kiện pet mới spawn
+Workspace.DescendantAdded:Connect(function(obj)
+    if frozen and obj:IsA("Model") and obj.Name:lower():find("pet") then
+        task.wait(0.1)
+        for _, part in ipairs(obj:GetDescendants()) do
+            if part:IsA("BasePart") and isInGarden(part) then
+                part.Anchored = true
+            end
+        end
+    end
+end)
+
+-- Nút ON/OFF
+ToggleButton.MouseButton1Click:Connect(function()
+    frozen = not frozen
+    if frozen then
+        ToggleButton.Text = "🟢 Freeze Pets: ON"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(0,200,0)
+        setPetsFrozen(true)
+    else
+        ToggleButton.Text = "🔴 Freeze Pets: OFF"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(200,0,0)
+        setPetsFrozen(false)
+    end
+end)
