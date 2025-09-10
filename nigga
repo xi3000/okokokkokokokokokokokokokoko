@@ -1,97 +1,67 @@
---// Freeze All Pets in Grow a Garden GUI
--- Bật ON → tất cả pet trong khu vườn dừng ngay
--- Bật OFF → pet hoạt động lại
--- WARNING: Chỉ dùng trong mục thử nghiệm, không ảnh hưởng game khác
+--// AUTO CENTER PETS FOR GROW A GARDEN
+-- WARNING: Chỉ client-side, không can thiệp server
 
 local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
--- Region vườn (chỉnh theo map nếu cần)
-local gardenRegion = Region3.new(Vector3.new(-50,0,-50), Vector3.new(50,50,50)) -- min và max corner
+local LocalPlayer = Players.LocalPlayer
+local autoCenter = false
 
 -- GUI
-local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
-ScreenGui.Name = "FreezePetsGUI"
+local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
+ScreenGui.Name = "PetCenterGui"
 
-local ToggleButton = Instance.new("TextButton", ScreenGui)
-ToggleButton.Size = UDim2.new(0, 200, 0, 50)
-ToggleButton.Position = UDim2.new(0.05, 0, 0.1, 0)
-ToggleButton.Text = "🔴 Freeze Pets: OFF"
-ToggleButton.BackgroundColor3 = Color3.fromRGB(200,0,0)
-ToggleButton.TextColor3 = Color3.fromRGB(255,255,255)
-ToggleButton.Font = Enum.Font.SourceSansBold
-ToggleButton.TextSize = 20
-ToggleButton.Draggable = true
+local Button = Instance.new("TextButton", ScreenGui)
+Button.Size = UDim2.new(0, 150, 0, 50)
+Button.Position = UDim2.new(0.05, 0, 0.1, 0)
+Button.Text = "Center Pets: OFF"
+Button.BackgroundColor3 = Color3.fromRGB(170,0,0)
+Button.TextColor3 = Color3.fromRGB(255,255,255)
+Button.TextScaled = true
+Button.Font = Enum.Font.SourceSansBold
+Button.BorderSizePixel = 0
 
--- Trạng thái
-local frozen = false
-
--- Kiểm tra pet có trong khu vườn không
-local function isInGarden(part)
-    local pos = part.Position
-    return pos.X >= gardenRegion.CFrame.Position.X - gardenRegion.Size.X/2
-       and pos.X <= gardenRegion.CFrame.Position.X + gardenRegion.Size.X/2
-       and pos.Y >= gardenRegion.CFrame.Position.Y - gardenRegion.Size.Y/2
-       and pos.Y <= gardenRegion.CFrame.Position.Y + gardenRegion.Size.Y/2
-       and pos.Z >= gardenRegion.CFrame.Position.Z - gardenRegion.Size.Z/2
-       and pos.Z <= gardenRegion.CFrame.Position.Z + gardenRegion.Size.Z/2
-end
-
--- Freeze / unfreeze pet
-local function freezePet(pet)
-    for _, part in ipairs(pet:GetDescendants()) do
-        if part:IsA("BasePart") and isInGarden(part) then
-            part.Anchored = true
-        elseif part:IsA("Motor6D") and part.Parent:IsA("Model") then
-            part:Destroy()
-        elseif part:IsA("BodyMover") then
-            part:Destroy()
-        elseif part:IsA("Humanoid") or part:IsA("AnimationController") then
-            part:Destroy()
-        end
-    end
-end
-
-local function unfreezePet(pet)
-    for _, part in ipairs(pet:GetDescendants()) do
-        if part:IsA("BasePart") and isInGarden(part) then
-            part.Anchored = false
-        end
-    end
-end
-
--- Freeze/unfreeze tất cả pet trong khu vườn
-local function setPetsFrozen(state)
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("Model") and obj.Name:lower():find("pet") then
-            if state then
-                freezePet(obj)
-            else
-                unfreezePet(obj)
-            end
-        end
-    end
-end
-
--- Khi pet mới spawn
-Workspace.DescendantAdded:Connect(function(obj)
-    if frozen and obj:IsA("Model") and obj.Name:lower():find("pet") then
-        task.wait(0.1)
-        freezePet(obj)
+Button.MouseButton1Click:Connect(function()
+    autoCenter = not autoCenter
+    if autoCenter then
+        Button.Text = "Center Pets: ON"
+        Button.BackgroundColor3 = Color3.fromRGB(0,170,0)
+    else
+        Button.Text = "Center Pets: OFF"
+        Button.BackgroundColor3 = Color3.fromRGB(170,0,0)
     end
 end)
 
--- GUI ON/OFF
-ToggleButton.MouseButton1Click:Connect(function()
-    frozen = not frozen
-    if frozen then
-        ToggleButton.Text = "🟢 Freeze Pets: ON"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(0,200,0)
-        setPetsFrozen(true)
-    else
-        ToggleButton.Text = "🔴 Freeze Pets: OFF"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(200,0,0)
-        setPetsFrozen(false)
+-- Vị trí trung tâm vườn (bạn chỉnh theo tọa độ thực tế trong game)
+local centerPosition = Vector3.new(0, 3, 0) -- Y=3 để pet không bị chạm đất
+
+-- Tween info
+local tweenInfo = TweenInfo.new(
+    1, -- thời gian di chuyển 1 giây
+    Enum.EasingStyle.Linear,
+    Enum.EasingDirection.Out,
+    0, -- repeat count (0=1 lần)
+    false, -- reverses
+    0 -- delay
+)
+
+-- Hàm di chuyển pet về trung tâm
+local function movePetToCenter(pet)
+    if pet:IsA("Model") and pet:FindFirstChild("HumanoidRootPart") then
+        local hrp = pet.HumanoidRootPart
+        local tween = TweenService:Create(hrp, tweenInfo, {CFrame = CFrame.new(centerPosition)})
+        tween:Play()
+    end
+end
+
+-- Loop chính
+RunService.Heartbeat:Connect(function()
+    if autoCenter then
+        for _, pet in pairs(workspace:GetChildren()) do
+            if pet.Name:find("Pet") then -- Nhận diện pet
+                movePetToCenter(pet)
+            end
+        end
     end
 end)
