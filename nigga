@@ -1,14 +1,14 @@
---// Freeze Pets in Garden - Grow a Garden
--- Chỉ freeze pet trong khu vực vườn
--- Bật ON → pet không di chuyển
--- Bật OFF → pet hoạt động bình thường
+--// Freeze All Pets in Grow a Garden GUI
+-- Bật ON → tất cả pet trong khu vườn dừng ngay
+-- Bật OFF → pet hoạt động lại
+-- WARNING: Chỉ dùng trong mục thử nghiệm, không ảnh hưởng game khác
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 
--- Tham số khu vườn (có thể điều chỉnh theo map)
-local gardenRegion = Region3.new(Vector3.new(-50,0,-50), Vector3.new(50,50,50)) -- min và max corner của vườn
+-- Region vườn (chỉnh theo map nếu cần)
+local gardenRegion = Region3.new(Vector3.new(-50,0,-50), Vector3.new(50,50,50)) -- min và max corner
 
 -- GUI
 local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
@@ -38,32 +38,51 @@ local function isInGarden(part)
        and pos.Z <= gardenRegion.CFrame.Position.Z + gardenRegion.Size.Z/2
 end
 
--- Freeze/unfreeze các pet trong khu vườn
+-- Freeze / unfreeze pet
+local function freezePet(pet)
+    for _, part in ipairs(pet:GetDescendants()) do
+        if part:IsA("BasePart") and isInGarden(part) then
+            part.Anchored = true
+        elseif part:IsA("Motor6D") and part.Parent:IsA("Model") then
+            part:Destroy()
+        elseif part:IsA("BodyMover") then
+            part:Destroy()
+        elseif part:IsA("Humanoid") or part:IsA("AnimationController") then
+            part:Destroy()
+        end
+    end
+end
+
+local function unfreezePet(pet)
+    for _, part in ipairs(pet:GetDescendants()) do
+        if part:IsA("BasePart") and isInGarden(part) then
+            part.Anchored = false
+        end
+    end
+end
+
+-- Freeze/unfreeze tất cả pet trong khu vườn
 local function setPetsFrozen(state)
     for _, obj in ipairs(Workspace:GetDescendants()) do
         if obj:IsA("Model") and obj.Name:lower():find("pet") then
-            for _, part in ipairs(obj:GetDescendants()) do
-                if part:IsA("BasePart") and isInGarden(part) then
-                    part.Anchored = state
-                end
+            if state then
+                freezePet(obj)
+            else
+                unfreezePet(obj)
             end
         end
     end
 end
 
--- Bắt sự kiện pet mới spawn
+-- Khi pet mới spawn
 Workspace.DescendantAdded:Connect(function(obj)
     if frozen and obj:IsA("Model") and obj.Name:lower():find("pet") then
         task.wait(0.1)
-        for _, part in ipairs(obj:GetDescendants()) do
-            if part:IsA("BasePart") and isInGarden(part) then
-                part.Anchored = true
-            end
-        end
+        freezePet(obj)
     end
 end)
 
--- Nút ON/OFF
+-- GUI ON/OFF
 ToggleButton.MouseButton1Click:Connect(function()
     frozen = not frozen
     if frozen then
